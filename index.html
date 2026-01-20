@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>陪伴式番茄钟</title>
+    <style>
+        /* CSS：负责美化 */
+        body, html {
+            margin: 0; padding: 0; height: 100%;
+            display: flex; justify-content: center; align-items: center;
+            background-color: #2c3e50; /* 电脑端的深色背景 */
+        }
+
+        /* 模拟 9:16 的手机屏幕容器 */
+        .phone-screen {
+            width: 100vw; height: 100vh;
+            max-width: 400px; max-height: 711px; /* 电脑上保持 9:16 */
+            position: relative;
+            /* 下面这张是陪伴式背景图，你可以换成你喜欢的图片链接 */
+            background: url('https://images.unsplash.com/photo-1544640808-32ca72ac7f37?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80') center/cover no-repeat;
+            box-shadow: 0 0 50px rgba(0,0,0,0.5);
+            display: flex; flex-direction: column; align-items: center;
+            overflow: hidden;
+        }
+
+        /* 状态文字：专注 or 休息 */
+        #status-text {
+            margin-top: 60px; color: white; font-size: 24px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+            z-index: 10; font-weight: bold;
+        }
+
+        /* 圆形时钟容器 */
+        .clock {
+            width: 220px; height: 220px;
+            background: rgba(255, 255, 255, 0.85); /* 半透明复古白 */
+            border: 10px solid #4a3728; /* 木质边框感 */
+            border-radius: 50%;
+            margin-top: 40px;
+            position: relative;
+            cursor: pointer; /* 鼠标放上去变小手 */
+            box-shadow: inset 0 0 20px rgba(0,0,0,0.2);
+            z-index: 10;
+        }
+
+        /* 指针：默认是红色的 */
+        .hand {
+            width: 4px; height: 90px;
+            background: #ff4757; /* 专注红色 */
+            position: absolute; bottom: 50%; left: calc(50% - 2px);
+            transform-origin: bottom center; /* 关键：绕圆心旋转 */
+            transform: rotate(0deg); /* 初始位置 */
+            transition: transform 1s linear, background 0.5s;
+            border-radius: 4px;
+        }
+
+        /* 圆心的小点 */
+        .center-dot {
+            width: 12px; height: 12px; background: #4a3728;
+            border-radius: 50%; position: absolute;
+            top: 50%; left: 50%; transform: translate(-50%, -50%);
+        }
+
+        /* 时间选择菜单（默认隐藏） */
+        .menu {
+            display: none; position: absolute; bottom: 100px;
+            background: white; border-radius: 10px; padding: 10px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3); z-index: 20;
+        }
+        .menu button {
+            display: block; width: 100px; margin: 10px;
+            padding: 8px; border: none; background: #4a3728;
+            color: white; border-radius: 5px; cursor: pointer;
+        }
+
+        /* 底部真实时间 */
+        .real-time {
+            position: absolute; bottom: 20px; color: white;
+            font-size: 14px; opacity: 0.8;
+        }
+    </style>
+</head>
+<body>
+
+<div class="phone-screen">
+    <div id="status-text">点击时钟开始</div>
+
+    <div class="clock" onclick="toggleMenu()">
+        <div class="hand" id="clock-hand"></div>
+        <div class="center-dot"></div>
+    </div>
+
+    <div class="menu" id="time-menu">
+        <button onclick="startTimer(30)">30 分钟</button>
+        <button onclick="startTimer(45)">45 分钟</button>
+        <button onclick="startTimer(60)">1 小时</button>
+    </div>
+
+    <div class="real-time" id="real-clock">00:00:00</div>
+</div>
+
+<audio id="alarm-sound" src="https://assets.mixkit.co/sfx/preview/mixkit-analog-alarm-clock-bell-2496.mp3"></audio>
+
+<script>
+    /* JavaScript：负责逻辑 */
+    let timerId = null;
+    let isBreak = false; // 是否在休息状态
+
+    // 1. 更新底部的真实时间
+    setInterval(() => {
+        const now = new Date();
+        document.getElementById('real-clock').innerText = "北京时间 " + now.toLocaleTimeString();
+    }, 1000);
+
+    // 2. 点击时钟显示/隐藏菜单
+    function toggleMenu() {
+        const menu = document.getElementById('time-menu');
+        menu.style.display = (menu.style.display === 'block') ? 'none' : 'block';
+    }
+
+    // 3. 开始计时
+    function startTimer(minutes) {
+        // 关闭菜单
+        document.getElementById('time-menu').style.display = 'none';
+        clearInterval(timerId); // 清除旧的计时
+        
+        isBreak = false; // 开始时默认是专注
+        let totalSeconds = minutes * 60;
+        let currentSeconds = totalSeconds;
+
+        updateUI(currentSeconds, totalSeconds);
+
+        timerId = setInterval(() => {
+            currentSeconds--;
+            updateUI(currentSeconds, totalSeconds);
+
+            if (currentSeconds <= 0) {
+                clearInterval(timerId);
+                finishCycle();
+            }
